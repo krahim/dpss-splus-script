@@ -1,0 +1,124 @@
+## dpss functionality for submission to statlab for s-plus.
+
+dpss <- function(n, k, nw, returnEigenvalues = TRUE, abstol = 4.450147717014e-308 ) {
+
+	## abstol is set for a 32 bit windows xp machine.
+	## please  see
+	## http://www.netlib.org/lapack/double/dstebz.f
+	## and 
+	## http://www.netlib.org/lapack/util/dlamch.f
+	## if in doubt set abstol to 0.0 
+	
+	## If abstol is less than or equal to zero, then ULP*|T|
+    ## will be used, where |T| means the 1-norm of T.
+
+	##Eigenvalues will be computed most accurately when ABSTOL is
+	##  set to twice the underflow threshold 2*DLAMCH('S'), not zero.
+	## I cannot access DLAMCH from S-plus. The default value is the output 
+	## from 2*DLAMCH('S') using a simple program on a windows xp 32 bit machine.
+
+	
+	## captital W is bandwidth
+	W <- nw/n
+
+	range <- 'I';
+	order <- 'E';
+	il <- n - k +1;
+	ctpw <- cos(2*pi*W);
+
+	d <- double(n)
+	e <- double(n)
+
+	for(t in 0:(n-1)) {
+		d[t+1] <- ((n-1-2*t)/2)^2 * ctpw;	
+		e[t+1] <- t*(n-t)/2;
+	}
+	e <- e[-1]
+
+	dstebz <- .Fortran("dstebz", as.character('I'), as.character('E'), as.integer(n),
+		double(1), double(1),
+		as.integer(il), as.integer(n), as.double(abstol), as.double(d), as.double(e),
+		m=integer(1), nsplit=integer(1), w=double(n), iblock=integer(n),
+		isplit=integer(n), double(4*n), integer(3*n),
+		info=integer(1))
+	
+
+
+	dstein <- .Fortran("dstein", as.integer(n), as.double(d), as.double(e), as.integer(dstebz$m),
+		as.double(dstebz$w), as.integer(dstebz$iblock), as.integer(dstebz$isplit),
+		v=double(n*k+k), as.integer(n), double(5*n), integer(n), ifail=integer(n),
+		info=integer(1))
+	
+	
+	v <- (matrix(dstein$v[1:(n*k)], nrow=n, ncol=k))[,k:1]
+
+
+	centreEle <- 0
+      
+	## we want the slope to be positive at the centre.
+	if((n %% 2) == 0) {
+		centreEle <- n/2 +1
+	} else {
+		centreEle <- n/2 +2
+	}
+
+	for(i in 1:k) {
+		## is this normalization necessary?
+		den <- sqrt(sum(v[,i]^2))
+
+		if(v[centreEle, i] < 0.0) {
+			v[,i] <- -v[,i] / den
+		} else {
+			v[,i] <- v[,i] / den
+		}
+	}
+
+	eigen <- NULL
+		if (returnEigenvalues) {
+			eigen <- dpssToEigenvalues(v, nw)
+    }
+    res <- list(v = v, eigen = eigen)
+    res
+}
+
+
+dpssToEigenvalues <- function(v, nw) {
+    v <- as.matrix(v)
+    n <- length(v[,1])
+    k <- length(v[1,])
+    w <- nw/n
+    npot <- 2**(ceiling(log2(2*n)))
+
+    ## pad
+    scratch <- rbind(v, matrix(data=0, nrow=npot-n, ncol=k))
+    ## n * acvs
+
+    for( i in 1:k) {
+       scratch[,i] <- Re(fft(abs(fft(scratch[,i]))**2))/npot
+    }
+
+    j <- 1:(n-1)
+    vectorOfRatios <- c(2*w, sin(2*pi*w*j)/(pi*j))
+    
+    ## Note: both vector of ratios and scratch
+    ##  roughy decrease in amplitude with increasing index,
+    ##  so sum things up in reverse order
+    eigenvalues <- NULL
+    if(k>1) {
+        eigenvalues <- apply(scratch[n:2,] * vectorOfRatios[n:2], 2, sum)
+    } else {
+        eigenvalues <- sum(scratch[n:2,] * vectorOfRatios[n:2])
+    }
+    return(2*eigenvalues +
+           vectorOfRatios[1]*scratch[1,1:k])
+}
+	
+
+	
+	
+	
+
+
+
+	
+	
