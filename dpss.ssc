@@ -10,7 +10,7 @@ dpss <- function(n, k, nw, returnEigenvalues = TRUE, abstol = 4.450147717014e-30
 	## if in doubt set abstol to 0.0 
 	
 	## If abstol is less than or equal to zero, then ULP*|T|
-    ## will be used, where |T| means the 1-norm of T.
+        ## will be used, where |T| means the 1-norm of T.
 
 	##Eigenvalues will be computed most accurately when ABSTOL is
 	##  set to twice the underflow threshold 2*DLAMCH('S'), not zero.
@@ -30,7 +30,12 @@ dpss <- function(n, k, nw, returnEigenvalues = TRUE, abstol = 4.450147717014e-30
 	e <- double(n)
 
 	for(t in 0:(n-1)) {
-		d[t+1] <- ((n-1-2*t)/2)^2 * ctpw;	
+                ## When n is large you may have convert n to a double
+                ## prior to the calculations below.
+                ## This may be required here.
+                ## See the correction in the file dpss.f90
+                ## in the R multitaper package.
+                d[t+1] <- ((n-1-2*t)/2)^2 * ctpw;
 		e[t+1] <- t*(n-t)/2;
 	}
 	e <- e[-1]
